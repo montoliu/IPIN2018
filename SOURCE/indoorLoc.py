@@ -14,6 +14,8 @@ class IndoorLoc:
     #    Each element i,j is the RSSI in the i-th location from the j-th AP
     # train_locations is a np array of train_samples x 2.
     #    Each element i is the coordinates x,y of i-th train fingerprint
+    # k is the number of neighbors in the knn algorithm
+    # penalty_floor is the penalty that will be added to the estimation location error if the floor estimation is wrong
     # ---------------------------------------------------------
     def __init__(self, train_fingerprints, train_locations, k=3, penalty_floor=4):
         self.train_fingerprints = train_fingerprints
@@ -29,7 +31,7 @@ class IndoorLoc:
     # distance_fingerprint
     # ---------------------------------------------------------
     # Return the euclidean distance between two fingerprints fp1, fp2
-    # fp1 and pf2 are np arrays
+    # fp1 and pf2 are np arrays with the same size
     # ---------------------------------------------------------
     def distance_fingerprint(self, fp1, fp2):
         n = fp1.shape[0]
@@ -44,6 +46,8 @@ class IndoorLoc:
     # ---------------------------------------------------------
     # distance_space
     # ---------------------------------------------------------
+    # Euclidean distance between two points
+    # ---------------------------------------------------------
     def distance_space(self, x1, y1, x2, y2):
         return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
@@ -52,8 +56,8 @@ class IndoorLoc:
     # get_location
     # ---------------------------------------------------------
     # Given a test fingerprint, return the estimated location (x,y,z) for this fingerprint
+    # ---------------------------------------------------------
     def get_location(self, distances):
-
         # First: floor estimation
         floor_votes = np.zeros(self.n_floors)
         for i in range(self.k):
@@ -65,7 +69,7 @@ class IndoorLoc:
         estimated_floor = np.argmax(floor_votes)
 
         # Second: location estimation.
-        # The distance is estimated only in train samples of this floor
+        # The distance is estimated only in train samples of the estimated floor
         index_floor = self.train_locations[:, 2] == estimated_floor
         distances_floor = distances[index_floor]
 
@@ -86,6 +90,8 @@ class IndoorLoc:
     # ---------------------------------------------------------
     # get_locations
     # ---------------------------------------------------------
+    # Get the location of a set of test_fingerprints
+    # ---------------------------------------------------------
     def get_locations(self, test_fingerprints):
         distances = distance.cdist(self.train_fingerprints, test_fingerprints, "euclidean")
         n_test = test_fingerprints.shape[0]
@@ -104,7 +110,8 @@ class IndoorLoc:
     # estimate_accuracy
     # ---------------------------------------------------------
     # Estimate the location accuracy of the estimated locations given the true ones.
-    # If the floor has not been estimated a penality of 4 meters is added.
+    # If the floor has not been estimated a penality of penalty_floor meters is added.
+    # ---------------------------------------------------------
     def estimate_accuracy(self, estimated_locations, true_locations):
         n_samples = estimated_locations.shape[0]
         verrors = np.zeros(n_samples)
@@ -119,8 +126,10 @@ class IndoorLoc:
     # ---------------------------------------------------------
     # get_accuracy
     # ---------------------------------------------------------
+    # Get statistics of the accuracy of a set of test fingerprints
+    # ---------------------------------------------------------
     def get_accuracy(self, test_fingerprints, test_locations):
         estimated_locations = self.get_locations(test_fingerprints)
-        accuracy, verrors = self.estimate_accuracy(estimated_locations,test_locations)
+        verrors = self.estimate_accuracy(estimated_locations,test_locations)
 
-        return accuracy, verrors
+        return np.mean(verrors), np.percentile(verrors,75)
