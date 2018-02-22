@@ -181,7 +181,7 @@ def normalize01(data, min_value):
 # go_common_approach
 # -----------------------------------------------------------
 # It uses APs that exists in both sets
-def go_common_approach(db1, db2, l_both, train_locations, test_locations):
+def go_common_approach(db1, db2, l_both, train_locations, test_locations, k=3):
     train_fingerprints = db1[:, l_both]
     test_fingerprints = db2[:, l_both]
     min_rssi = np.amin(train_fingerprints)
@@ -189,7 +189,6 @@ def go_common_approach(db1, db2, l_both, train_locations, test_locations):
     train_fingerprints_norm = normalize01(train_fingerprints, min_rssi)
     test_fingerprints_norm = normalize01(test_fingerprints, min_rssi)
 
-    k = 3
     indoorloc_model = IPS.IndoorLoc(train_fingerprints_norm, train_locations, k)
     mean_acc, p75_acc = indoorloc_model.get_accuracy(test_fingerprints_norm, test_locations)
 
@@ -262,7 +261,7 @@ def get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, l_all, l_both, l_go
 # go_regression_approach
 # -----------------------------------------------------------
 # This approach uses a regression technique to estimate the values of the gone AP in test.
-def go_regression_approach(db1, db2, train_locations, test_locations, l_gone_aps, l_both, method):
+def go_regression_approach(db1, db2, train_locations, test_locations, l_gone_aps, l_both, method, k=3):
     l_all = list(l_both)
     l_all.extend(l_gone_aps)
     train_fps = db1[:, l_all]
@@ -276,7 +275,6 @@ def go_regression_approach(db1, db2, train_locations, test_locations, l_gone_aps
     new_data_aps = get_new_aps_by_regression(train_fps_norm, test_fps_norm, l_both, l_gone_aps, method)
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
-    k = 3
     indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
     mean_acc, p75_acc = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
 
@@ -302,7 +300,6 @@ def go_neighbours_approach(db1, db2, train_locations, test_locations, l_gone_aps
     new_data_aps = get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, l_all, l_both, l_gone_aps, k)
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
-    k = 3
     indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
     mean_acc, p75_acc = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
 
@@ -329,11 +326,9 @@ def go_combination_approach(db1, db2, train_locations, test_locations, l_gone_ap
     new_data_aps_nei = get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, l_all, l_both, l_gone_aps, k)
 
     new_data_aps = (new_data_aps_reg + new_data_aps_nei) / 2
-    #new_data_aps = new_data_aps_reg*0.6 + new_data_aps_nei*0.4
 
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
-    k = 3
     indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
     mean_acc, p75_acc= indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
 

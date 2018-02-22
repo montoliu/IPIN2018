@@ -47,9 +47,13 @@ def exp_ap_gone(db_path):
     k = 11
 
     l_both = [16, 50, 51, 70]
-    l_exps = [[5], [6], [7], [8], [11], [5,6], [5,7], [5,8], [5,11], [5,6,7], [5,6,8], [5,6,7,8,11]]
+    l_exps = [[5], [6], [7], [8], [11],
+              [5, 6], [5, 7], [5, 8], [5, 11], [6, 7], [6, 8], [6, 11], [7, 8], [7, 11], [8, 11],
+              [5, 6, 7], [5, 6, 8], [5, 6, 11], [5, 7, 8], [5, 7, 11], [5, 8, 11],
+              [5, 6, 7, 8], [5, 6, 7, 11],
+              [5, 6, 7, 8, 11]]
 
-    acc_common, p75_common = myf.go_common_approach(fp_month01, fp_month15, l_both, loc_month01, loc_month15)
+    acc_common, p75_common = myf.go_common_approach(fp_month01, fp_month15, l_both, loc_month01, loc_month15, k)
     print("Using common approach (only in both sets " + str(l_both) + ") -> "
           + "{:0.2f}".format(acc_common)
           + " [" + "{:0.2f}".format(p75_common) + "] ")
@@ -58,8 +62,8 @@ def exp_ap_gone(db_path):
         l_all = list(l_both)
         l_all.extend(l_gone)
 
-        acc_all, p75_all = myf.go_common_approach(fp_month01, fp_month15, l_all, loc_month01, loc_month15)
-        acc_reg, p75_reg = myf.go_regression_approach(fp_month01, fp_month15, loc_month01, loc_month15, l_gone, l_both, method)
+        acc_all, p75_all = myf.go_common_approach(fp_month01, fp_month15, l_all, loc_month01, loc_month15, k)
+        acc_reg, p75_reg = myf.go_regression_approach(fp_month01, fp_month15, loc_month01, loc_month15, l_gone, l_both, method, k)
         acc_nei, p75_nei = myf.go_neighbours_approach(fp_month01, fp_month15, loc_month01, loc_month15, l_gone, l_both, k)
         acc_cmb, p75_cmb = myf.go_combination_approach(fp_month01, fp_month15, loc_month01, loc_month15, l_gone, l_both, k)
 
@@ -73,5 +77,6 @@ def exp_ap_gone(db_path):
                                       + "{:0.2f}".format(p75_cmb) + " "
                                       + "{:0.2f}".format(p75_all)
                                     + "]")
+
 
 

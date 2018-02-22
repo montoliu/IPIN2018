@@ -11,6 +11,8 @@ if __name__ == "__main__":
     db_path = "../DB/db/"
 
     #mye.exp_test_indoorloc(db_path)
+
     mye.exp_ap_gone(db_path)
+
 
 
