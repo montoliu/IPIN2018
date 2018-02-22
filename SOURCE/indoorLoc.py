@@ -15,32 +15,22 @@ class IndoorLoc:
     # train_locations is a np array of train_samples x 2.
     #    Each element i is the coordinates x,y of i-th train fingerprint
     # k is the number of neighbors in the knn algorithm
-    # penalty_floor is the penalty that will be added to the estimation location error if the floor estimation is wrong
     # ---------------------------------------------------------
-    def __init__(self, train_fingerprints, train_locations, k=3, penalty_floor=4):
+    def __init__(self, train_fingerprints, train_locations, k = 3):
         self.train_fingerprints = train_fingerprints
         self.train_locations = train_locations
         self.n_training_samples = train_fingerprints.shape[0]
         self.n_aps = train_fingerprints.shape[1]
-        self.n_floors = int(np.max(self.train_locations[:,2]) + 1)
+        self.n_floors = int(np.max(self.train_locations[:, 2]) + 1)
         self.k = k
-        self.penalty_floor = penalty_floor
-
 
     # ---------------------------------------------------------
-    # distance_fingerprint
+    # get_floor
     # ---------------------------------------------------------
-    # Return the euclidean distance between two fingerprints fp1, fp2
-    # fp1 and pf2 are np arrays with the same size
+    # Convert the floor id in z coordinates assuming that the distance between two floors is 4 meters
     # ---------------------------------------------------------
-    def distance_fingerprint(self, fp1, fp2):
-        n = fp1.shape[0]
-        d = 0
-
-        for i in range(n):
-            d = d + abs(fp1[i] - fp2[i])
-
-        return d / n
+    def get_floor(self, floor_id):
+        return floor_id*4
 
 
     # ---------------------------------------------------------
@@ -48,8 +38,8 @@ class IndoorLoc:
     # ---------------------------------------------------------
     # Euclidean distance between two points
     # ---------------------------------------------------------
-    def distance_space(self, x1, y1, x2, y2):
-        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+    def distance_space(self, p1, p2):
+        return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (self.get_floor(p1[2]) - self.get_floor(p2[2]))**2)
 
 
     # ---------------------------------------------------------
@@ -77,8 +67,8 @@ class IndoorLoc:
         y = 0
         for i in range(self.k):
             best = np.argmin(distances_floor)
-            x = x + self.train_locations[best][0]
-            y = y + self.train_locations[best][1]
+            x = x + self.train_locations[best, 0]
+            y = y + self.train_locations[best, 1]
             distances_floor[best] = 1000000  # big number
 
         x = x / self.k
@@ -95,13 +85,13 @@ class IndoorLoc:
     def get_locations(self, test_fingerprints):
         distances = distance.cdist(self.train_fingerprints, test_fingerprints, "euclidean")
         n_test = test_fingerprints.shape[0]
-        locations = np.zeros([n_test,3])
+        locations = np.zeros([n_test, 3])
 
         for i in range(n_test):
-            x,y,z = self.get_location(distances[:,i])
-            locations[i][0] = x
-            locations[i][1] = y
-            locations[i][2] = z
+            x, y, z = self.get_location(distances[:, i])
+            locations[i, 0] = x
+            locations[i, 1] = y
+            locations[i, 2] = z
 
         return locations
 
@@ -110,17 +100,14 @@ class IndoorLoc:
     # estimate_accuracy
     # ---------------------------------------------------------
     # Estimate the location accuracy of the estimated locations given the true ones.
-    # If the floor has not been estimated a penality of penalty_floor meters is added.
     # ---------------------------------------------------------
     def estimate_accuracy(self, estimated_locations, true_locations):
         n_samples = estimated_locations.shape[0]
         verrors = np.zeros(n_samples)
         for i in range(n_samples):
-            verrors[i] = self.distance_space(estimated_locations[i][0], estimated_locations[i][1], true_locations[i][0], true_locations[i][1])
-            #if estimated_locations[i][2] != true_locations[i][2]:
-            #    verrors[i] = verrors[i] + self.penalty_floor
+            verrors[i] = self.distance_space(estimated_locations[i, :], true_locations[i, :])
 
-        return np.sum(verrors) / n_samples, verrors
+        return verrors
 
 
     # ---------------------------------------------------------
@@ -130,6 +117,6 @@ class IndoorLoc:
     # ---------------------------------------------------------
     def get_accuracy(self, test_fingerprints, test_locations):
         estimated_locations = self.get_locations(test_fingerprints)
-        verrors = self.estimate_accuracy(estimated_locations,test_locations)
+        verrors = self.estimate_accuracy(estimated_locations, test_locations)
 
-        return np.mean(verrors), np.percentile(verrors,75)
+        return np.mean(verrors), np.percentile(verrors, 75)

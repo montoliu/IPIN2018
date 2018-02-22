@@ -14,7 +14,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn import neighbors
 
 import matplotlib.pyplot as plt
-from indoorLoc import IndoorLoc
+import indoorLoc as IPS
 
 
 # -----------------------------------------------------------
@@ -42,6 +42,61 @@ def cdf(data):
     plt.grid(True)
 
     plt.show()
+
+# -----------------------------------------------------------
+# get_stats_aps
+# -----------------------------------------------------------
+# Return a np array of dim n_aps x 3
+# [0] -> pct of samples with data
+# [1] -> pct of samples with rssi > TH1  (strong signal, i.e. -50)
+def get_stats_aps(fps, th1):
+    n_samples = fps.shape[0]   # number of rows == number of samples
+    n_aps = fps.shape[1]       # number of columns == number of APS
+    stats_aps = np.zeros([n_aps,3])
+
+    idx_no_100 = fps != 100
+    idx_th1 = np.logical_and(fps != 100, fps > th1)
+
+    stats_aps[:,0] = sum(idx_no_100)/n_samples
+    stats_aps[:,1] = sum(idx_th1)/n_samples
+
+    return stats_aps
+
+
+# -----------------------------------------------------------
+# get_index_ap_with_data
+# -----------------------------------------------------------
+# Return an array of n_aps dimension
+# The ith element is 0 if all sample of the ith AP (column) is 100 (no RSSI data received from this AP)
+# or there are less than pct samples with rssi value < th
+# 1 otherwise, i.e. are reliable APs
+# -----------------------------------------------------------
+def get_index_ap_with_data(fps, th, pct):
+    stats_aps = get_stats_aps(fps, th)
+    strong_aps = stats_aps[:,1] >= pct
+    v_index = np.zeros(fps.shape[1])
+    v_index[strong_aps] = 1
+
+    return v_index
+
+
+# -----------------------------------------------------------
+# get_new_gone_aps
+# -----------------------------------------------------------
+def get_new_gone_both_aps(v_index_db1, v_index_db2):
+    l_new = []
+    l_gone = []
+    l_both = []
+    n_aps = v_index_db1.shape[0]
+    for i in range(n_aps):
+        if v_index_db1[i] == 1 and v_index_db2[i] == 0:
+            l_gone.append(i)
+        elif v_index_db1[i] == 0 and v_index_db2[i] == 1:
+            l_new.append(i)
+        elif v_index_db1[i] == 1 and v_index_db2[i] == 1:
+            l_both.append(i)
+
+    return l_new, l_gone, l_both
 
 
 # -----------------------------------------------------------
@@ -98,6 +153,13 @@ def get_all_data_month(db_path, str_month, n_train_files, n_test_files):
         fp_data = fp_data_train
         loc_data = loc_data_train
 
+    # Since floor id are 3 and 5, but they are consectutive in the building, we replace the 3 by 0, and the 5 by 1
+    idx_floor_3 = loc_data[:, 2] == 3
+    idx_floor_5 = loc_data[:, 2] == 5
+
+    loc_data[idx_floor_3, 2] = 0
+    loc_data[idx_floor_5, 2] = 1
+
     return fp_data, loc_data
 
 
@@ -128,10 +190,10 @@ def go_common_approach(db1, db2, l_both, train_locations, test_locations):
     test_fingerprints_norm = normalize01(test_fingerprints, min_rssi)
 
     k = 3
-    indoorloc_model = IndoorLoc(train_fingerprints_norm, train_locations, k)
-    accuracy, verrors = indoorloc_model.get_accuracy(test_fingerprints_norm, test_locations)
+    indoorloc_model = IPS.IndoorLoc(train_fingerprints_norm, train_locations, k)
+    mean_acc, p75_acc = indoorloc_model.get_accuracy(test_fingerprints_norm, test_locations)
 
-    return accuracy
+    return mean_acc, p75_acc
 
 
 # -----------------------------------------------------------
@@ -215,10 +277,10 @@ def go_regression_approach(db1, db2, train_locations, test_locations, l_gone_aps
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
     k = 3
-    indoorloc_model = IndoorLoc(train_fps_norm, train_locations, k)
-    accuracy, verrors = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
+    indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
+    mean_acc, p75_acc = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
 
-    return accuracy
+    return mean_acc, p75_acc
 
 
 # -----------------------------------------------------------
@@ -241,10 +303,10 @@ def go_neighbours_approach(db1, db2, train_locations, test_locations, l_gone_aps
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
     k = 3
-    indoorloc_model = IndoorLoc(train_fps_norm, train_locations, k)
-    accuracy, verrors = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
+    indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
+    mean_acc, p75_acc = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
 
-    return accuracy
+    return mean_acc, p75_acc
 
 
 # -----------------------------------------------------------
@@ -272,10 +334,12 @@ def go_combination_approach(db1, db2, train_locations, test_locations, l_gone_ap
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
     k = 3
-    indoorloc_model = IndoorLoc(train_fps_norm, train_locations, k)
-    accuracy, verrors = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
+    indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
+    mean_acc, p75_acc= indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
 
-    return accuracy
+    return mean_acc, p75_acc
+
+
 
 
 
