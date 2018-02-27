@@ -316,3 +316,26 @@ def Experiment10():
 
     accuracy_common = go_common_approach(fingerprints_month1, fingerprints_month2, l_both, locations_month1, locations_month2)
     accuracy_proposed = go_proposed_approach(fingerprints_month1, fingerprints_month2, l_new, l_gone, locations_month1, locations_month2)
+
+
+    n = fp_all_train.shape[0]
+    n_80 = int(0.8 * n) + 1
+    idx = list(range(n))
+    np.random.shuffle(idx)
+
+    fp_all_train_ordered = fp_all_train[idx,:]
+    loc_all_train_ordered = loc_all_train[idx,:]
+
+    fp_train = fp_all_train_ordered[0:n_80, :]
+    fp_test = fp_all_train_ordered[n_80:n, :]
+
+    loc_train = loc_all_train_ordered[0:n_80, :]
+    loc_test = loc_all_train_ordered[n_80:n, :]
+
+
+d es matriz de Nx3
+plt.violinplot(d, [1,2,3], points=40, widths=0.5,
+                      showmeans=True, showextrema=True, showmedians=True,
+                      bw_method='silverman')
+
+plt.show()
