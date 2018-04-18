@@ -12,25 +12,27 @@ import sys
 if __name__ == "__main__":
     db_path = "../DB/db/"
 
-    exp = 3
+    exp = 7
+    k = 1
+    pct = 0.2
 
     if exp == 1:
-        filename = "exp_test_indoorloc.txt"
-        sys.stdout = open(filename, 'wt')
-        print("month size_l_both accuracy pct_75")
-        mye.exp_test_indoorloc(db_path)
+        output_filename = "exp_test_indoorloc.txt"
+        mye.exp_test_indoorloc(db_path, output_filename)
     elif exp == 2:
-        filename = "exp_ap_gone.txt"
-        sys.stdout = open(filename, 'wt')
-        print("gone reg_50 nei_50 cmb_50 all_50 reg_75 nei_75 cmb_75 all_75")
-        mye.exp_ap_gone(db_path)
+        output_filename = "exp_ap_gone.txt"
+        mye.exp_ap_gone(db_path, output_filename)
     elif exp == 3:
-        filename = "exp_best_imputation_models_train.txt"
-        sys.stdout = open(filename, 'wt')
-        print("X Y reg_50 nei_50 reg_75 nei_75")
-        mye.exp_best_imputation_models_train(db_path)
-
-
+        output_filename = "exp_best_imputation_models_train.txt"
+        mye.exp_best_imputation_models_train(db_path, output_filename)
+    elif exp == 4:
+        mye.exp_paper1(db_path)
+    elif exp == 5:
+        mye.exp_paper2(db_path, k)
+    elif exp == 6:
+        mye.exp_paper3(db_path, k)
+    elif exp == 7:
+        mye.exp_paper4(db_path, k, pct)
 
 
 

@@ -8,6 +8,8 @@ import pandas as pd
 from scipy.spatial import distance
 
 from sklearn import linear_model
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVR
 from sklearn.neural_network import MLPRegressor
 from sklearn.ensemble import RandomForestRegressor
@@ -164,45 +166,13 @@ def get_all_data_month(db_path, str_month, n_train_files, n_test_files):
 
 
 # -----------------------------------------------------------
-# normalize01
-# -----------------------------------------------------------
-# 100 -> 0
-# -x -> between 0 and 1
-# 0 means no data or very poor signal.
-# 1 means very strong signal
-def normalize01(data, min_value):
-    index_100 = data == 100
-    new_data = (data + abs(min_value)) / abs(min_value)
-    new_data[index_100] = 0
-    return new_data
-
-
-# -----------------------------------------------------------
-# go_common_approach
-# -----------------------------------------------------------
-# It uses APs that exists in both sets
-def go_common_approach(db1, db2, l_both, train_locations, test_locations, k=3):
-    train_fingerprints = db1[:, l_both]
-    test_fingerprints = db2[:, l_both]
-    min_rssi = np.amin(train_fingerprints)
-
-    train_fingerprints_norm = normalize01(train_fingerprints, min_rssi)
-    test_fingerprints_norm = normalize01(test_fingerprints, min_rssi)
-
-    indoorloc_model = IPS.IndoorLoc(train_fingerprints_norm, train_locations, k)
-    mean_acc, p75_acc = indoorloc_model.get_accuracy(test_fingerprints_norm, test_locations)
-
-    return mean_acc, p75_acc
-
-
-# -----------------------------------------------------------
 # get_new_aps_by_regression
 # -----------------------------------------------------------
-def get_new_aps_by_regression(train_fps_norm, test_fps_norm, l_both, l_gone_aps, method):
-    test_y = np.zeros([test_fps_norm.shape[0], len(l_gone_aps)])
-    for i in range(len(l_gone_aps)):
-        train_x = train_fps_norm[:, 0:len(l_both)]
-        train_y = train_fps_norm[:, len(l_both) + i]
+def get_new_aps_by_regression(train_fps_norm, test_fps_norm, size_l_both, size_gone_aps, method):
+    test_y = np.zeros([test_fps_norm.shape[0], size_gone_aps])
+    for i in range(size_gone_aps):
+        train_x = train_fps_norm[:, 0:size_l_both]
+        train_y = train_fps_norm[:, size_l_both + i]
 
         # generate regression model and predict test new column
         if method == "LR":
@@ -236,13 +206,34 @@ def get_new_aps_by_regression(train_fps_norm, test_fps_norm, l_both, l_gone_aps,
 
 
 # -----------------------------------------------------------
+# get_new_aps_by_basic
+# -----------------------------------------------------------
+def get_new_aps_by_basic(train_fps_norm, size_test, size_gone_aps, method):
+    test_y = np.zeros([size_test, size_gone_aps])
+
+    for i in range(size_gone_aps):
+        data = train_fps_norm[:, i]
+        if method == "mean":
+            value = np.mean(data)
+        elif method == "min":
+            value = np.min(data)
+        elif method == "max":
+            value = np.max(data)
+        elif method == "zero":
+            value = 0.0
+
+        test_y[:, i] = value
+    return test_y
+
+
+# -----------------------------------------------------------
 # get_new_aps_by_neighbours
 # -----------------------------------------------------------
-def get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, l_all, l_both, l_gone_aps, k):
-    train_x = train_fps_norm[:, 0:len(l_both)]
-    train_y = train_fps_norm[:, len(l_both):len(l_all)]
-    test_x = test_fps_norm[:, 0:len(l_both)]
-    test_y = np.zeros([test_x.shape[0],len(l_gone_aps)])
+def get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, size_l_all, size_l_both, size_l_gone_aps, k):
+    train_x = train_fps_norm[:, 0:size_l_both]
+    train_y = train_fps_norm[:, size_l_both:size_l_all]
+    test_x = test_fps_norm[:, 0:size_l_both]
+    test_y = np.zeros([test_x.shape[0],size_l_gone_aps])
 
     distances = distance.cdist(train_x, test_x, "euclidean")
     for i in range(test_x.shape[0]):
@@ -258,10 +249,8 @@ def get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, l_all, l_both, l_go
 
 
 # -----------------------------------------------------------
-# go_regression_approach
 # -----------------------------------------------------------
-# This approach uses a regression technique to estimate the values of the gone AP in test.
-def go_regression_approach(db1, db2, train_locations, test_locations, l_gone_aps, l_both, method, k=3):
+def get_normalized_data(db1, db2, l_both, l_gone_aps):
     l_all = list(l_both)
     l_all.extend(l_gone_aps)
     train_fps = db1[:, l_all]
@@ -272,7 +261,97 @@ def go_regression_approach(db1, db2, train_locations, test_locations, l_gone_aps
     train_fps_norm = normalize01(train_fps, min_rssi)
     test_fps_norm = normalize01(test_fps, min_rssi)
 
-    new_data_aps = get_new_aps_by_regression(train_fps_norm, test_fps_norm, l_both, l_gone_aps, method)
+    return train_fps_norm, test_fps_norm
+
+
+# -----------------------------------------------------------
+# -----------------------------------------------------------
+def normalize_data(train_fps, test_fps):
+    min_rssi = np.amin(train_fps)
+
+    train_fps_norm = normalize01(train_fps, min_rssi)
+    test_fps_norm = normalize01(test_fps, min_rssi)
+
+    return train_fps_norm, test_fps_norm
+
+
+# -----------------------------------------------------------
+# normalize01
+# -----------------------------------------------------------
+# 100 -> 0
+# -x -> between 0 and 1
+# 0 means no data or very poor signal.
+# 1 means very strong signal
+def normalize01(data, min_value):
+    index_100 = data == 100
+    new_data = (data + abs(min_value)) / abs(min_value)
+    new_data[index_100] = 0
+    return new_data
+
+
+# -----------------------------------------------------------
+# -----------------------------------------------------------
+def ips(train_data, test_data, train_loc, test_loc, k):
+    indoorloc_model = IPS.IndoorLoc(train_data, train_loc, k)
+    mean_acc, p75_acc = indoorloc_model.get_accuracy(test_data, test_loc)
+
+    return mean_acc, p75_acc
+
+
+# -----------------------------------------------------------
+# -----------------------------------------------------------
+def impute_regression(x_train, y_train, x_test):
+    svr_rbf = SVR(kernel='rbf', C=1, gamma=0.15)
+    model = svr_rbf.fit(x_train, y_train)
+    y_test = model.predict(x_test)
+
+    return y_test
+
+
+# -----------------------------------------------------------
+# go_common_approach
+# -----------------------------------------------------------
+# It uses APs form list l_waps
+def go_common_approach(db1, db2, l_waps, train_locations, test_locations, k=3):
+    train_fingerprints = db1[:, l_waps]
+    test_fingerprints = db2[:, l_waps]
+
+    min_rssi = np.amin(train_fingerprints)
+    train_fps_norm = normalize01(train_fingerprints, min_rssi)
+    test_fps_norm = normalize01(test_fingerprints, min_rssi)
+
+    indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
+    mean_acc, p75_acc = indoorloc_model.get_accuracy(test_fps_norm, test_locations)
+
+    return mean_acc, p75_acc
+
+
+# -----------------------------------------------------------
+# go_regression_approach
+# -----------------------------------------------------------
+# This approach imputes zero of all samples
+def go_basic_approach(train_fps_norm, test_fps_norm, train_locations, test_locations, size_gone_aps, size_l_both, method, k):
+    first = size_l_both
+    last = train_fps_norm.shape[1]
+
+    new_data_aps = get_new_aps_by_basic(train_fps_norm[:, first:last], test_fps_norm.shape[0], size_gone_aps, method)
+    new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
+
+    indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
+    mean_acc, p75_acc = indoorloc_model.get_accuracy(new_test_fps_norm, test_locations)
+
+    return mean_acc, p75_acc
+
+
+
+
+
+# -----------------------------------------------------------
+# go_regression_approach
+# -----------------------------------------------------------
+# This approach uses a regression technique to estimate the values of the gone AP in test.
+def go_regression_approach(train_fps_norm, test_fps_norm, train_locations, test_locations, size_gone_aps, size_l_both, method, k=3):
+    new_data_aps = get_new_aps_by_regression(train_fps_norm, test_fps_norm, size_l_both, size_gone_aps, method)
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
     indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
@@ -286,18 +365,9 @@ def go_regression_approach(db1, db2, train_locations, test_locations, l_gone_aps
 # -----------------------------------------------------------
 # This approach uses a technique based on nearest neighbours to estimate the values of the gone AP in test.
 # For each test sample, asign to the columns values the ones in the k-th most similar in the train set
-def go_neighbours_approach(db1, db2, train_locations, test_locations, l_gone_aps, l_both, k):
-    l_all = list(l_both)
-    l_all.extend(l_gone_aps)
-    train_fps = db1[:, l_all]
-    test_fps = db2[:, l_both]
-
-    min_rssi = np.amin(train_fps)
-
-    train_fps_norm = normalize01(train_fps, min_rssi)
-    test_fps_norm = normalize01(test_fps, min_rssi)
-
-    new_data_aps = get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, l_all, l_both, l_gone_aps, k)
+def go_neighbours_approach(train_fps_norm, test_fps_norm, train_locations, test_locations, size_l_gone_aps, size_l_both, k):
+    size_l_all = size_l_gone_aps + size_l_both
+    new_data_aps = get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, size_l_all, size_l_both, size_l_gone_aps, k)
     new_test_fps_norm = np.concatenate((test_fps_norm, new_data_aps), axis=1)
 
     indoorloc_model = IPS.IndoorLoc(train_fps_norm, train_locations, k)
@@ -311,19 +381,11 @@ def go_neighbours_approach(db1, db2, train_locations, test_locations, l_gone_aps
 # -----------------------------------------------------------
 # Combine go_regression_approach (with SVR) with go_neighbours_approach
 # The nex value is the mean of the two estimated using the previous methods
-def go_combination_approach(db1, db2, train_locations, test_locations, l_gone_aps, l_both, k):
-    l_all = list(l_both)
-    l_all.extend(l_gone_aps)
-    train_fps = db1[:, l_all]
-    test_fps = db2[:, l_both]
+def go_combination_approach(train_fps_norm, test_fps_norm, train_locations, test_locations, size_l_gone_aps, size_l_both, k):
 
-    min_rssi = np.amin(train_fps)
-
-    train_fps_norm = normalize01(train_fps, min_rssi)
-    test_fps_norm = normalize01(test_fps, min_rssi)
-
-    new_data_aps_reg = get_new_aps_by_regression(train_fps_norm, test_fps_norm, l_both, l_gone_aps, "SVR")
-    new_data_aps_nei = get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, l_all, l_both, l_gone_aps, k)
+    size_l_all = size_l_gone_aps + size_l_both
+    new_data_aps_reg = get_new_aps_by_regression(train_fps_norm, test_fps_norm, size_l_both, size_l_gone_aps, "SVR")
+    new_data_aps_nei = get_new_aps_by_neighbours(train_fps_norm, test_fps_norm, size_l_all, size_l_both, size_l_gone_aps, k)
 
     new_data_aps = (new_data_aps_reg + new_data_aps_nei) / 2
 
